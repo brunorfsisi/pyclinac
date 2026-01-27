@@ -1,6 +1,13 @@
 # Pylinac QA Suite
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pyclinac.streamlit.app)
+
 Sistema completo de Controle de Qualidade para Radioterapia baseado na biblioteca [pylinac](https://pylinac.readthedocs.io/).
+
+## Demo Online
+
+Acesse a aplicação diretamente no Streamlit Cloud:
+**[https://pyclinac.streamlit.app](https://pyclinac.streamlit.app)**
 
 ## Funcionalidades
 
@@ -39,12 +46,38 @@ Sistema completo de Controle de Qualidade para Radioterapia baseado na bibliotec
 - **Flatness/Symmetry**: Planura e simetria
 - **Penumbra**: Análise de bordas do campo
 
-## Instalação
+## Deploy no Streamlit Cloud
 
-### 1. Clone ou baixe o repositório
+### Opção 1: Fork e Deploy
+
+1. Faça fork deste repositório
+2. Acesse [share.streamlit.io](https://share.streamlit.io)
+3. Conecte sua conta GitHub
+4. Selecione o repositório `pyclinac`
+5. Configure:
+   - **Main file path**: `app.py`
+   - **Python version**: 3.10
+6. Clique em "Deploy"
+
+### Opção 2: Deploy Direto
+
+Se você é o owner do repositório:
+
+1. Acesse [share.streamlit.io](https://share.streamlit.io)
+2. Clique em "New app"
+3. Selecione:
+   - **Repository**: `brunorfsisi/pyclinac`
+   - **Branch**: `main`
+   - **Main file path**: `app.py`
+4. Clique em "Deploy"
+
+## Instalação Local
+
+### 1. Clone o repositório
 
 ```bash
-cd /home/brunorg/pyclinac
+git clone https://github.com/brunorfsisi/pyclinac.git
+cd pyclinac
 ```
 
 ### 2. Crie um ambiente virtual (recomendado)
@@ -62,7 +95,7 @@ venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 ```
 
-## Execução
+### 4. Execute a aplicação
 
 ```bash
 streamlit run app.py
@@ -74,10 +107,13 @@ A aplicação estará disponível em `http://localhost:8501`
 
 ```
 pyclinac/
-├── app.py                      # Aplicação principal
-├── requirements.txt            # Dependências
-├── README.md                   # Este arquivo
-├── pages/                      # Páginas dos módulos
+├── app.py                       # Aplicação principal (entry point)
+├── requirements.txt             # Dependências Python
+├── packages.txt                 # Dependências de sistema (apt)
+├── README.md                    # Este arquivo
+├── .streamlit/
+│   └── config.toml              # Configuração do Streamlit
+├── pages/                       # Páginas dos módulos
 │   ├── 1_Winston_Lutz.py
 │   ├── 2_Picket_Fence.py
 │   ├── 3_Starshot.py
@@ -87,10 +123,10 @@ pyclinac/
 │   ├── 7_CBCT.py
 │   ├── 8_Log_Analyzer.py
 │   └── 9_Field_Analysis.py
-├── utils/                      # Funções utilitárias
+├── utils/                       # Funções utilitárias
 │   ├── __init__.py
 │   └── helpers.py
-└── assets/                     # Recursos estáticos
+└── assets/                      # Recursos estáticos
 ```
 
 ## Uso
@@ -140,3 +176,7 @@ MIT License - Veja o arquivo LICENSE para detalhes.
 ## Contribuições
 
 Contribuições são bem-vindas! Por favor, abra uma issue ou pull request.
+
+## Autor
+
+Bruno R. F. Sisi - [@brunorfsisi](https://github.com/brunorfsisi)

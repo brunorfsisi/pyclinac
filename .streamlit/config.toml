@@ -8,9 +8,14 @@ font = "sans serif"
 [server]
 maxUploadSize = 500
 enableXsrfProtection = true
+headless = true
 
 [browser]
 gatherUsageStats = false
 
 [runner]
 magicEnabled = true
+
+[client]
+showErrorDetails = false
+toolbarMode = "minimal"
