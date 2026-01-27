@@ -1,6 +1,6 @@
 """
 Módulo CBCT - Análise de Phantomas de Tomografia
-CatPhan, Quart DVT, ACR CT, Cheese Phantoms
+CatPhan, Quart DVT, ACR CT/MRI, Cheese Phantoms (TomoTherapy)
 """
 
 import streamlit as st
@@ -8,7 +8,6 @@ import tempfile
 import os
 from pathlib import Path
 import matplotlib.pyplot as plt
-import zipfile
 
 st.set_page_config(page_title="CBCT Analysis", page_icon="🔬", layout="wide")
 
@@ -18,12 +17,26 @@ try:
         CatPhan503, CatPhan504, CatPhan600, CatPhan604,
         QuartDVT, ACRCT, ACRMRILarge
     )
-    from pylinac.ct import CatPhanBase
     PYLINAC_AVAILABLE = True
+
+    # Tenta importar phantoms adicionais
+    try:
+        from pylinac import ACRMRISmall
+        ACR_MRI_SMALL_AVAILABLE = True
+    except ImportError:
+        ACR_MRI_SMALL_AVAILABLE = False
+
+    try:
+        from pylinac.cheese import TomoCheese, CheesePhantomBase
+        CHEESE_AVAILABLE = True
+    except ImportError:
+        CHEESE_AVAILABLE = False
+
 except ImportError:
     PYLINAC_AVAILABLE = False
+    CHEESE_AVAILABLE = False
+    ACR_MRI_SMALL_AVAILABLE = False
 
-# Adiciona path do utils
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.helpers import (
@@ -35,17 +48,21 @@ from utils.helpers import (
 create_sidebar_info(
     module_name="🔬 CBCT Analysis",
     description="""
-    Análise de qualidade de imagem CBCT usando phantomas padronizados:
-    CatPhan (503, 504, 600, 604), Quart DVT, ACR CT/MRI.
+    Análise de qualidade de imagem CBCT/CT usando phantomas padronizados:
+    - **CatPhan**: 503, 504, 600, 604
+    - **Quart DVT**: Sistemas DVT dental
+    - **ACR CT/MRI**: Phantomas de acreditação
+    - **Cheese Phantom**: TomoTherapy QA
     """,
     references=[
         "AAPM TG-142: Quality assurance of medical accelerators",
-        "ACR CT Accreditation Program",
+        "AAPM TG-148: QA for helical tomotherapy",
+        "ACR CT/MRI Accreditation Program",
         "Catphan 500 and 600 Manual"
     ]
 )
 
-st.title("🔬 Análise de Qualidade CBCT")
+st.title("🔬 Análise de Qualidade CBCT/CT")
 st.markdown("""
 Verificação de qualidade de imagem de tomografia computadorizada usando phantomas padronizados.
 """)
@@ -54,205 +71,79 @@ if not PYLINAC_AVAILABLE:
     st.error("❌ Pylinac não está instalado. Execute: `pip install pylinac`")
     st.stop()
 
-# Seleção do phantom
-phantom_options = {
-    "CatPhan 503": "catphan503",
-    "CatPhan 504": "catphan504",
-    "CatPhan 600": "catphan600",
-    "CatPhan 604": "catphan604",
-    "Quart DVT": "quartdvt",
-    "ACR CT": "acrct",
-    "ACR MRI Large": "acrmri"
-}
+# Tabs para diferentes categorias de phantom
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🐱 CatPhan",
+    "🏥 ACR CT/MRI",
+    "🦷 Quart DVT",
+    "🧀 Cheese (TomoTherapy)"
+])
 
-selected_phantom = st.selectbox(
-    "Selecione o tipo de Phantom",
-    options=list(phantom_options.keys()),
-    help="Escolha o phantom utilizado para o scan CBCT"
-)
+# =============================================================================
+# TAB 1 - CATPHAN
+# =============================================================================
+with tab1:
+    st.subheader("Análise CatPhan")
+    st.markdown("Phantomas CatPhan para análise completa de qualidade CT/CBCT.")
 
-# Descrição do phantom
-phantom_descriptions = {
-    "catphan503": """
-    **CatPhan 503**: Phantom básico com módulos para:
-    - CTP404: Sensitometria (números HU)
-    - CTP486: Uniformidade
-    - CTP528: Resolução espacial de alto contraste
-    """,
-    "catphan504": """
-    **CatPhan 504**: Phantom com módulos:
-    - CTP404: Sensitometria (números HU)
-    - CTP486: Uniformidade
-    - CTP528: Resolução espacial
-    - CTP515: Baixo contraste
-    """,
-    "catphan600": """
-    **CatPhan 600**: Phantom completo com:
-    - CTP404: Sensitometria
-    - CTP486: Uniformidade
-    - CTP528: Resolução espacial
-    - CTP515: Baixo contraste
-    - CTP591: Análise de fio fino
-    """,
-    "catphan604": """
-    **CatPhan 604**: Versão compacta do 600 para CBCT.
-    """,
-    "quartdvt": """
-    **Quart DVT**: Phantom específico para sistemas DVT dental e CBCT pequeno campo.
-    """,
-    "acrct": """
-    **ACR CT**: Phantom de acreditação do American College of Radiology para CT.
-    """,
-    "acrmri": """
-    **ACR MRI Large**: Phantom de acreditação ACR para ressonância magnética.
-    """
-}
+    catphan_options = {
+        "CatPhan 503": CatPhan503,
+        "CatPhan 504": CatPhan504,
+        "CatPhan 600": CatPhan600,
+        "CatPhan 604": CatPhan604
+    }
 
-with st.expander("ℹ️ Sobre o phantom selecionado"):
-    st.markdown(phantom_descriptions.get(phantom_options[selected_phantom], ""))
+    selected_catphan = st.selectbox(
+        "Selecione o modelo CatPhan",
+        options=list(catphan_options.keys()),
+        key="catphan_select"
+    )
 
-st.divider()
+    # Descrição do CatPhan
+    catphan_info = {
+        "CatPhan 503": "Módulos: CTP404 (HU), CTP486 (Uniformidade), CTP528 (Alto Contraste)",
+        "CatPhan 504": "Módulos: CTP404 (HU), CTP486 (Uniformidade), CTP528 (Alto Contraste), CTP515 (Baixo Contraste)",
+        "CatPhan 600": "Completo: CTP404, CTP486, CTP528, CTP515, CTP591 (Fio fino)",
+        "CatPhan 604": "Versão compacta do 600 para CBCT"
+    }
+    st.info(catphan_info[selected_catphan])
 
-# Upload de arquivos
-st.markdown("### Upload de Imagens DICOM")
-st.markdown("""
-Faça upload de um arquivo ZIP contendo os slices DICOM do scan CBCT,
-ou selecione múltiplos arquivos DICOM diretamente.
-""")
-
-upload_method = st.radio(
-    "Método de upload:",
-    ["Arquivo ZIP", "Múltiplos arquivos DICOM"],
-    horizontal=True
-)
-
-uploaded_data = None
-
-if upload_method == "Arquivo ZIP":
-    uploaded_data = st.file_uploader(
-        "Selecione o arquivo ZIP com os DICOMs",
+    uploaded_catphan = st.file_uploader(
+        "Upload do arquivo ZIP com os DICOMs",
         type=['zip'],
-        key="cbct_zip"
-    )
-else:
-    uploaded_data = st.file_uploader(
-        "Selecione os arquivos DICOM",
-        type=['dcm', 'DCM'],
-        accept_multiple_files=True,
-        key="cbct_multi"
+        key="catphan_upload"
     )
 
-# Parâmetros de análise
-with st.expander("⚙️ Parâmetros de Análise", expanded=True):
-    col1, col2 = st.columns(2)
+    with st.expander("⚙️ Parâmetros de Análise", expanded=True):
+        col1, col2 = st.columns(2)
 
-    with col1:
-        hu_tolerance = st.number_input(
-            "Tolerância HU",
-            min_value=10,
-            max_value=100,
-            value=40,
-            help="Tolerância para valores de número CT (HU)"
-        )
+        with col1:
+            hu_tolerance = st.number_input("Tolerância HU", 10, 100, 40, key="cat_hu")
+            thickness_tolerance = st.number_input("Tolerância Espessura (mm)", 0.1, 2.0, 0.2, 0.1, key="cat_thick")
 
-        thickness_tolerance = st.number_input(
-            "Tolerância de espessura (mm)",
-            min_value=0.1,
-            max_value=2.0,
-            value=0.2,
-            step=0.1,
-            help="Tolerância para medição de espessura de corte"
-        )
+        with col2:
+            scaling_tolerance = st.number_input("Tolerância Escala (mm)", 0.1, 2.0, 1.0, 0.1, key="cat_scale")
+            low_contrast_tolerance = st.number_input("Tolerância Baixo Contraste", 1, 10, 2, key="cat_lc")
 
-    with col2:
-        scaling_tolerance = st.number_input(
-            "Tolerância de escala (mm)",
-            min_value=0.1,
-            max_value=2.0,
-            value=1.0,
-            step=0.1,
-            help="Tolerância para geometria/escala"
-        )
+    with st.expander("🔧 Parâmetros Avançados"):
+        col1, col2 = st.columns(2)
+        with col1:
+            check_uid = st.checkbox("Verificar UID da série", True, key="cat_uid")
+            cnr_threshold = st.number_input("Limiar CNR", 0.5, 5.0, 2.0, 0.1, key="cat_cnr")
+        with col2:
+            expected_roll = st.number_input("Rotação esperada (°)", -180.0, 180.0, 0.0, 1.0, key="cat_roll")
 
-        low_contrast_tolerance = st.number_input(
-            "Tolerância baixo contraste",
-            min_value=1,
-            max_value=10,
-            value=2,
-            help="Número mínimo de ROIs de baixo contraste visíveis"
-        )
-
-# Parâmetros avançados
-with st.expander("🔧 Parâmetros Avançados"):
-    col1, col2 = st.columns(2)
-
-    with col1:
-        check_uid = st.checkbox(
-            "Verificar UID",
-            value=True,
-            help="Verifica se todas as imagens pertencem à mesma série"
-        )
-
-        expected_roll = st.number_input(
-            "Rotação esperada (°)",
-            min_value=-180.0,
-            max_value=180.0,
-            value=0.0,
-            step=1.0,
-            help="Ângulo de rotação esperado do phantom"
-        )
-
-    with col2:
-        cnr_threshold = st.number_input(
-            "Limiar CNR",
-            min_value=0.5,
-            max_value=5.0,
-            value=2.0,
-            step=0.1,
-            help="Limiar de CNR para baixo contraste"
-        )
-
-# Análise
-if uploaded_data is not None:
-    # Verifica se há dados para analisar
-    has_data = (upload_method == "Arquivo ZIP" and uploaded_data) or \
-               (upload_method != "Arquivo ZIP" and uploaded_data and len(uploaded_data) > 1)
-
-    if has_data:
-        if st.button("🔬 Executar Análise", type="primary"):
+    if uploaded_catphan:
+        if st.button("🔬 Analisar CatPhan", key="analyze_catphan", type="primary"):
             temp_paths = []
 
             try:
-                with st.spinner(f"Carregando e analisando imagens do {selected_phantom}..."):
-                    # Prepara os arquivos
-                    if upload_method == "Arquivo ZIP":
-                        temp_dir = extract_zip_to_temp(uploaded_data)
-                        temp_paths.append(temp_dir)
-                        image_path = temp_dir
-                    else:
-                        temp_dir = tempfile.mkdtemp()
-                        temp_paths.append(temp_dir)
-                        for uf in uploaded_data:
-                            file_path = os.path.join(temp_dir, uf.name)
-                            with open(file_path, 'wb') as f:
-                                f.write(uf.getvalue())
-                        image_path = temp_dir
+                with st.spinner(f"Analisando {selected_catphan}..."):
+                    temp_dir = extract_zip_to_temp(uploaded_catphan)
+                    temp_paths.append(temp_dir)
 
-                    # Seleciona a classe apropriada
-                    phantom_classes = {
-                        "catphan503": CatPhan503,
-                        "catphan504": CatPhan504,
-                        "catphan600": CatPhan600,
-                        "catphan604": CatPhan604,
-                        "quartdvt": QuartDVT,
-                        "acrct": ACRCT,
-                        "acrmri": ACRMRILarge
-                    }
-
-                    phantom_class = phantom_classes[phantom_options[selected_phantom]]
-
-                    # Carrega e analisa
-                    phantom = phantom_class(image_path, check_uid=check_uid)
+                    phantom_class = catphan_options[selected_catphan]
+                    phantom = phantom_class(temp_dir, check_uid=check_uid)
                     phantom.analyze(
                         hu_tolerance=hu_tolerance,
                         scaling_tolerance=scaling_tolerance,
@@ -263,231 +154,379 @@ if uploaded_data is not None:
 
                 st.success("✅ Análise concluída!")
 
-                # Resultados por módulo
-                st.subheader("📊 Resultados")
-
-                # Status geral
+                # Resultados gerais
                 results = phantom.results_data()
 
                 col1, col2, col3 = st.columns(3)
-
                 with col1:
-                    st.metric(
-                        "Phantom",
-                        results.phantom_model
-                    )
-
+                    st.metric("Modelo", results.phantom_model)
                 with col2:
-                    st.metric(
-                        "Número de Imagens",
-                        f"{results.num_images}"
-                    )
-
+                    st.metric("Imagens", results.num_images)
                 with col3:
-                    st.metric(
-                        "Ângulo Roll",
-                        f"{results.catphan_roll_deg:.1f}°" if hasattr(results, 'catphan_roll_deg') else "N/A"
-                    )
+                    if hasattr(results, 'catphan_roll_deg'):
+                        st.metric("Roll", f"{results.catphan_roll_deg:.1f}°")
 
-                st.divider()
+                # Módulos
+                st.subheader("📊 Resultados por Módulo")
 
-                # Módulo CTP404 - Sensitometria/Geometria
+                # CTP404 - Sensitometria
                 if hasattr(phantom, 'ctp404'):
-                    st.markdown("### 📐 CTP404 - Sensitometria e Geometria")
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        # Geometria
-                        st.markdown("#### Geometria")
+                    with st.expander("📐 CTP404 - Sensitometria/Geometria", expanded=True):
                         ctp404 = phantom.ctp404
 
-                        geom_data = {
-                            "Distância Topo": f"{ctp404.origin_slice:.1f} mm" if hasattr(ctp404, 'origin_slice') else "N/A",
-                            "Espessura Slice": f"{ctp404.meas_slice_thickness:.2f} mm" if hasattr(ctp404, 'meas_slice_thickness') else "N/A",
-                        }
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown("**Geometria**")
+                            if hasattr(ctp404, 'meas_slice_thickness'):
+                                st.metric("Espessura de Slice", f"{ctp404.meas_slice_thickness:.2f} mm")
+                            if hasattr(ctp404, 'geometry_passed'):
+                                st.metric("Geometria", "✅ Passou" if ctp404.geometry_passed else "❌ Falhou")
 
-                        for key, val in geom_data.items():
-                            st.metric(key, val)
+                        with col2:
+                            st.markdown("**Valores HU**")
+                            if hasattr(ctp404, 'rois'):
+                                hu_data = []
+                                for name, roi in ctp404.rois.items():
+                                    nominal = roi.nominal_val if hasattr(roi, 'nominal_val') else 0
+                                    hu_data.append({
+                                        "Material": name,
+                                        "HU Medido": f"{roi.pixel_value:.1f}",
+                                        "HU Nominal": f"{nominal:.1f}",
+                                        "Diferença": f"{abs(roi.pixel_value - nominal):.1f}",
+                                        "Status": "✅" if roi.passed else "❌"
+                                    })
+                                st.dataframe(hu_data, use_container_width=True)
 
-                    with col2:
-                        # Valores HU
-                        st.markdown("#### Valores HU")
-
-                        if hasattr(ctp404, 'rois'):
-                            hu_data = []
-                            for name, roi in ctp404.rois.items():
-                                hu_data.append({
-                                    "Material": name,
-                                    "HU Medido": f"{roi.pixel_value:.1f}",
-                                    "HU Nominal": f"{roi.nominal_val:.1f}" if hasattr(roi, 'nominal_val') else "N/A",
-                                    "Diferença": f"{abs(roi.pixel_value - roi.nominal_val):.1f}" if hasattr(roi, 'nominal_val') else "N/A",
-                                    "Passou": "✅" if roi.passed else "❌"
-                                })
-                            st.dataframe(hu_data, use_container_width=True)
-
-                # Módulo CTP486 - Uniformidade
+                # CTP486 - Uniformidade
                 if hasattr(phantom, 'ctp486'):
-                    st.markdown("### ⚖️ CTP486 - Uniformidade")
+                    with st.expander("⚖️ CTP486 - Uniformidade"):
+                        ctp486 = phantom.ctp486
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if hasattr(ctp486, 'uniformity_index'):
+                                st.metric("Índice de Uniformidade", f"{ctp486.uniformity_index:.2f}")
+                            if hasattr(ctp486, 'passed'):
+                                st.metric("Status", "✅ Passou" if ctp486.passed else "❌ Falhou")
+                        with col2:
+                            if hasattr(ctp486, 'rois'):
+                                unif_data = [{"Região": n, "HU": f"{r.pixel_value:.1f}"} for n, r in ctp486.rois.items()]
+                                st.dataframe(unif_data, use_container_width=True)
 
-                    ctp486 = phantom.ctp486
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        if hasattr(ctp486, 'uniformity_index'):
-                            st.metric("Índice de Uniformidade", f"{ctp486.uniformity_index:.2f}")
-                        if hasattr(ctp486, 'integral_non_uniformity'):
-                            st.metric("Não-Uniformidade Integral", f"{ctp486.integral_non_uniformity:.4f}")
-
-                    with col2:
-                        if hasattr(ctp486, 'rois'):
-                            unif_data = []
-                            for name, roi in ctp486.rois.items():
-                                unif_data.append({
-                                    "Região": name,
-                                    "HU": f"{roi.pixel_value:.1f}",
-                                    "Std": f"{roi.std:.1f}" if hasattr(roi, 'std') else "N/A"
-                                })
-                            st.dataframe(unif_data, use_container_width=True)
-
-                # Módulo CTP528 - Alto Contraste
+                # CTP528 - Alto Contraste (MTF)
                 if hasattr(phantom, 'ctp528'):
-                    st.markdown("### 🔍 CTP528 - Resolução de Alto Contraste")
+                    with st.expander("🔍 CTP528 - Resolução de Alto Contraste"):
+                        ctp528 = phantom.ctp528
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if hasattr(ctp528, 'mtf'):
+                                st.metric("MTF 50%", f"{ctp528.mtf.relative_resolution(50):.2f} lp/cm")
+                                st.metric("MTF 30%", f"{ctp528.mtf.relative_resolution(30):.2f} lp/cm")
+                                st.metric("MTF 10%", f"{ctp528.mtf.relative_resolution(10):.2f} lp/cm")
+                        with col2:
+                            if hasattr(ctp528, 'mtf'):
+                                fig_mtf, ax_mtf = plt.subplots(figsize=(6, 4))
+                                ctp528.mtf.plot(ax=ax_mtf)
+                                st.pyplot(fig_mtf)
+                                plt.close(fig_mtf)
 
-                    ctp528 = phantom.ctp528
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        if hasattr(ctp528, 'mtf'):
-                            st.metric("MTF 50%", f"{ctp528.mtf.relative_resolution(50):.2f} lp/cm")
-                            st.metric("MTF 30%", f"{ctp528.mtf.relative_resolution(30):.2f} lp/cm")
-                            st.metric("MTF 10%", f"{ctp528.mtf.relative_resolution(10):.2f} lp/cm")
-
-                    with col2:
-                        # Plot MTF
-                        if hasattr(ctp528, 'mtf'):
-                            fig_mtf, ax_mtf = plt.subplots(figsize=(6, 4))
-                            ctp528.mtf.plot(ax=ax_mtf)
-                            ax_mtf.set_title('Curva MTF')
-                            st.pyplot(fig_mtf)
-                            plt.close(fig_mtf)
-
-                # Módulo CTP515 - Baixo Contraste
+                # CTP515 - Baixo Contraste
                 if hasattr(phantom, 'ctp515'):
-                    st.markdown("### 👁️ CTP515 - Resolução de Baixo Contraste")
-
-                    ctp515 = phantom.ctp515
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
+                    with st.expander("👁️ CTP515 - Resolução de Baixo Contraste"):
+                        ctp515 = phantom.ctp515
                         if hasattr(ctp515, 'rois'):
                             num_visible = len([r for r in ctp515.rois.values() if r.passed])
-                            st.metric("ROIs Visíveis", f"{num_visible}")
-                            st.metric("CNR Limite", f"{cnr_threshold}")
-
-                    with col2:
-                        if hasattr(ctp515, 'rois'):
-                            lc_data = []
-                            for name, roi in ctp515.rois.items():
-                                lc_data.append({
-                                    "ROI": name,
-                                    "CNR": f"{roi.cnr:.2f}" if hasattr(roi, 'cnr') else "N/A",
-                                    "Visível": "✅" if roi.passed else "❌"
-                                })
-                            st.dataframe(lc_data[:10], use_container_width=True)
+                            st.metric("ROIs Visíveis", num_visible)
+                            st.metric("Status", "✅ Passou" if ctp515.passed else "❌ Falhou")
 
                 # Visualização completa
-                st.subheader("🖼️ Visualização dos Módulos")
-
-                # Plot de cada módulo
-                fig = phantom.plot_analyzed_image()
+                st.subheader("🖼️ Visualização")
+                fig = phantom.plot_analyzed_image(show=False)
                 st.pyplot(fig)
                 plt.close(fig)
-
-                # Imagens individuais dos módulos
-                with st.expander("📸 Imagens Individuais dos Módulos"):
-                    modules = []
-                    if hasattr(phantom, 'ctp404'):
-                        modules.append(('CTP404', phantom.ctp404))
-                    if hasattr(phantom, 'ctp486'):
-                        modules.append(('CTP486', phantom.ctp486))
-                    if hasattr(phantom, 'ctp528'):
-                        modules.append(('CTP528', phantom.ctp528))
-                    if hasattr(phantom, 'ctp515'):
-                        modules.append(('CTP515', phantom.ctp515))
-
-                    for name, module in modules:
-                        st.markdown(f"#### {name}")
-                        fig_mod, ax_mod = plt.subplots(figsize=(8, 8))
-                        module.plot(ax=ax_mod)
-                        st.pyplot(fig_mod)
-                        plt.close(fig_mod)
 
                 # Relatório PDF
                 st.subheader("📄 Relatório")
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_pdf:
                     phantom.publish_pdf(tmp_pdf.name)
-                    get_pdf_download_button(tmp_pdf.name, f"cbct_{phantom_options[selected_phantom]}_report.pdf")
+                    get_pdf_download_button(tmp_pdf.name, f"catphan_{selected_catphan.lower().replace(' ', '_')}_report.pdf")
                     temp_paths.append(tmp_pdf.name)
 
             except Exception as e:
-                st.error(f"❌ Erro durante a análise: {str(e)}")
+                st.error(f"❌ Erro: {str(e)}")
                 st.exception(e)
-
             finally:
                 cleanup_temp_files(temp_paths)
 
+# =============================================================================
+# TAB 2 - ACR CT/MRI
+# =============================================================================
+with tab2:
+    st.subheader("Análise ACR CT/MRI")
+    st.markdown("Phantomas de acreditação do American College of Radiology.")
+
+    acr_options = {"ACR CT": ACRCT, "ACR MRI Large": ACRMRILarge}
+    if ACR_MRI_SMALL_AVAILABLE:
+        acr_options["ACR MRI Small"] = ACRMRISmall
+
+    selected_acr = st.selectbox(
+        "Selecione o phantom ACR",
+        options=list(acr_options.keys()),
+        key="acr_select"
+    )
+
+    uploaded_acr = st.file_uploader(
+        "Upload do arquivo ZIP com os DICOMs",
+        type=['zip'],
+        key="acr_upload"
+    )
+
+    with st.expander("⚙️ Parâmetros de Análise"):
+        col1, col2 = st.columns(2)
+        with col1:
+            acr_hu_tol = st.number_input("Tolerância HU", 10, 100, 40, key="acr_hu")
+        with col2:
+            acr_scale_tol = st.number_input("Tolerância Escala (mm)", 0.1, 2.0, 1.0, 0.1, key="acr_scale")
+
+    if uploaded_acr:
+        if st.button("🔬 Analisar ACR", key="analyze_acr", type="primary"):
+            temp_paths = []
+
+            try:
+                with st.spinner(f"Analisando {selected_acr}..."):
+                    temp_dir = extract_zip_to_temp(uploaded_acr)
+                    temp_paths.append(temp_dir)
+
+                    phantom_class = acr_options[selected_acr]
+                    phantom = phantom_class(temp_dir)
+                    phantom.analyze()
+
+                st.success("✅ Análise concluída!")
+
+                # Resultados
+                results = phantom.results_data()
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Phantom", selected_acr)
+                    st.metric("Imagens", results.num_images if hasattr(results, 'num_images') else "N/A")
+
+                # Visualização
+                st.subheader("🖼️ Visualização")
+                fig = phantom.plot_analyzed_image(show=False)
+                st.pyplot(fig)
+                plt.close(fig)
+
+                # PDF
+                st.subheader("📄 Relatório")
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_pdf:
+                    phantom.publish_pdf(tmp_pdf.name)
+                    get_pdf_download_button(tmp_pdf.name, f"acr_{selected_acr.lower().replace(' ', '_')}_report.pdf")
+                    temp_paths.append(tmp_pdf.name)
+
+            except Exception as e:
+                st.error(f"❌ Erro: {str(e)}")
+                st.exception(e)
+            finally:
+                cleanup_temp_files(temp_paths)
+
+# =============================================================================
+# TAB 3 - QUART DVT
+# =============================================================================
+with tab3:
+    st.subheader("Análise Quart DVT")
+    st.markdown("Phantom Quart DVT para sistemas de tomografia dental e CBCT de pequeno campo.")
+
+    uploaded_quart = st.file_uploader(
+        "Upload do arquivo ZIP com os DICOMs",
+        type=['zip'],
+        key="quart_upload"
+    )
+
+    with st.expander("⚙️ Parâmetros de Análise"):
+        col1, col2 = st.columns(2)
+        with col1:
+            quart_hu_tol = st.number_input("Tolerância HU", 10, 100, 40, key="quart_hu")
+        with col2:
+            quart_scale_tol = st.number_input("Tolerância Escala (mm)", 0.1, 2.0, 1.0, 0.1, key="quart_scale")
+
+    if uploaded_quart:
+        if st.button("🔬 Analisar Quart DVT", key="analyze_quart", type="primary"):
+            temp_paths = []
+
+            try:
+                with st.spinner("Analisando Quart DVT..."):
+                    temp_dir = extract_zip_to_temp(uploaded_quart)
+                    temp_paths.append(temp_dir)
+
+                    phantom = QuartDVT(temp_dir)
+                    phantom.analyze(
+                        hu_tolerance=quart_hu_tol,
+                        scaling_tolerance=quart_scale_tol
+                    )
+
+                st.success("✅ Análise concluída!")
+
+                # Visualização
+                st.subheader("🖼️ Visualização")
+                fig = phantom.plot_analyzed_image(show=False)
+                st.pyplot(fig)
+                plt.close(fig)
+
+                # PDF
+                st.subheader("📄 Relatório")
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_pdf:
+                    phantom.publish_pdf(tmp_pdf.name)
+                    get_pdf_download_button(tmp_pdf.name, "quart_dvt_report.pdf")
+                    temp_paths.append(tmp_pdf.name)
+
+            except Exception as e:
+                st.error(f"❌ Erro: {str(e)}")
+                st.exception(e)
+            finally:
+                cleanup_temp_files(temp_paths)
+
+# =============================================================================
+# TAB 4 - CHEESE PHANTOM (TOMOTHERAPY)
+# =============================================================================
+with tab4:
+    st.subheader("🧀 Cheese Phantom (TomoTherapy)")
+
+    if not CHEESE_AVAILABLE:
+        st.warning("""
+        ⚠️ O módulo Cheese Phantom requer pylinac >= 3.10.
+
+        O Cheese Phantom é usado para QA de TomoTherapy e sistemas helicoidais.
+        Instale a versão mais recente do pylinac para habilitar esta funcionalidade.
+        """)
+
+        st.markdown("""
+        ### Sobre o Cheese Phantom
+
+        O Cheese Phantom é um phantom cilíndrico com furos para inserção de
+        câmaras de ionização ou detectores, usado principalmente para:
+
+        - Verificação de dose em TomoTherapy
+        - QA de distribuição de dose helicoidal
+        - Comissionamento de sistemas de entrega
+
+        **Características:**
+        - Formato cilíndrico ("queijo suíço")
+        - Múltiplos furos para detectores
+        - Análise de uniformidade e simetria
+        """)
     else:
-        if upload_method != "Arquivo ZIP":
-            st.warning("⚠️ Selecione múltiplos arquivos DICOM (pelo menos 2).")
+        st.markdown("""
+        Análise do Cheese Phantom para QA de TomoTherapy e sistemas helicoidais.
+        """)
 
-else:
-    st.info("👆 Faça upload das imagens CBCT para começar a análise.")
+        uploaded_cheese = st.file_uploader(
+            "Upload do arquivo ZIP com os DICOMs",
+            type=['zip'],
+            key="cheese_upload"
+        )
 
-# Instruções
+        with st.expander("⚙️ Parâmetros de Análise"):
+            col1, col2 = st.columns(2)
+            with col1:
+                cheese_roi_size = st.number_input(
+                    "Tamanho ROI (mm)",
+                    min_value=1.0,
+                    max_value=20.0,
+                    value=5.0,
+                    step=0.5,
+                    key="cheese_roi"
+                )
+            with col2:
+                cheese_tolerance = st.number_input(
+                    "Tolerância (%)",
+                    min_value=1.0,
+                    max_value=10.0,
+                    value=3.0,
+                    step=0.5,
+                    key="cheese_tol"
+                )
+
+        if uploaded_cheese:
+            if st.button("🔬 Analisar Cheese", key="analyze_cheese", type="primary"):
+                temp_paths = []
+
+                try:
+                    with st.spinner("Analisando Cheese Phantom..."):
+                        temp_dir = extract_zip_to_temp(uploaded_cheese)
+                        temp_paths.append(temp_dir)
+
+                        phantom = TomoCheese(temp_dir)
+                        phantom.analyze()
+
+                    st.success("✅ Análise concluída!")
+
+                    # Resultados
+                    st.subheader("📊 Resultados")
+
+                    if hasattr(phantom, 'results_data'):
+                        results = phantom.results_data()
+                        st.json(results)
+
+                    # Visualização
+                    st.subheader("🖼️ Visualização")
+                    fig = phantom.plot_analyzed_image(show=False)
+                    st.pyplot(fig)
+                    plt.close(fig)
+
+                    # PDF
+                    st.subheader("📄 Relatório")
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_pdf:
+                        phantom.publish_pdf(tmp_pdf.name)
+                        get_pdf_download_button(tmp_pdf.name, "cheese_phantom_report.pdf")
+                        temp_paths.append(tmp_pdf.name)
+
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
+                    st.exception(e)
+                finally:
+                    cleanup_temp_files(temp_paths)
+
+# Instruções gerais
 with st.expander("📖 Instruções de Uso"):
     st.markdown("""
-    ### Como realizar análise de QA de CBCT:
+    ### Como realizar análise de QA CBCT/CT:
 
     1. **Preparação**:
        - Posicione o phantom no centro do campo
        - Alinhe conforme marcações do phantom
 
     2. **Aquisição**:
-       - Execute o scan CBCT com protocolo padrão
+       - Execute o scan CBCT/CT com protocolo padrão
        - Exporte os slices em formato DICOM
+       - Comprima em arquivo ZIP
 
-    3. **Upload**:
-       - Comprima os arquivos DICOM em um ZIP
-       - Ou selecione múltiplos arquivos DICOM
-
-    4. **Análise**:
+    3. **Análise**:
        - Selecione o tipo correto de phantom
        - Configure as tolerâncias
        - Execute a análise
 
-    5. **Interpretação**:
-       - Verifique os valores HU dos materiais de referência
-       - Avalie a uniformidade
-       - Verifique a resolução espacial (MTF)
-       - Avalie a visibilidade de baixo contraste
+    ### Módulos Analisados:
 
-    ### Módulos do CatPhan:
-
-    | Módulo | Parâmetros Avaliados |
-    |--------|---------------------|
-    | CTP404 | Números HU, geometria, espessura de slice |
-    | CTP486 | Uniformidade do campo |
+    | Módulo | Parâmetros |
+    |--------|------------|
+    | CTP404 | Números HU, geometria, espessura |
+    | CTP486 | Uniformidade |
     | CTP528 | Resolução de alto contraste (MTF) |
     | CTP515 | Resolução de baixo contraste (CNR) |
 
     ### Tolerâncias Típicas:
 
-    - **Números HU**: ± 40 HU para água
-    - **Uniformidade**: ≤ 2% variação
-    - **Geometria**: ≤ 1 mm de erro
-    - **Espessura de slice**: ± 0.5 mm
+    | Parâmetro | Tolerância |
+    |-----------|------------|
+    | Números HU | ± 40 HU (água) |
+    | Uniformidade | ≤ 2% variação |
+    | Geometria | ≤ 1 mm |
+    | Espessura slice | ± 0.5 mm |
+
+    ### Phantoms Suportados:
+
+    - **CatPhan 503/504/600/604**: Análise completa CT
+    - **Quart DVT**: Sistemas dental/pequeno campo
+    - **ACR CT/MRI**: Acreditação ACR
+    - **Cheese Phantom**: TomoTherapy QA
     """)
