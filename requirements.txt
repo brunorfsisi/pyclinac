@@ -1,9 +1,8 @@
 # Pylinac QA Suite - Requirements for Streamlit Cloud
 # ===================================================
-
 # Core Framework
 streamlit>=1.28.0
-libgl1
+
 # Pylinac - Medical Physics QA
 pylinac>=3.20.0
 
